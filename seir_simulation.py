@@ -2,12 +2,8 @@ import networkx as nx
 import random
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from IPython import display
-import time
 import numpy as np
 from enum import Enum
-import itertools
-import functools
 import os
 import argparse
 import datetime
@@ -27,6 +23,7 @@ class GraphType(Enum):
 def build_graph(graph_options, num_nodes, avg_num_edges, initial_infected):
     """Builds a social network graph of the specified type and initializes SEIR states."""
     graph_type = graph_options.graph_type
+    G = None
     if graph_type == GraphType.BINOMIAL:
         G = nx.erdos_renyi_graph(n=num_nodes, p=10/num_nodes)
     elif graph_type == GraphType.SMALL_WORLD:
@@ -40,7 +37,8 @@ def build_graph(graph_options, num_nodes, avg_num_edges, initial_infected):
         G = nx.random_geometric_graph(n=num_nodes, radius=0.1)
     elif graph_type == GraphType.POWERLAW_CLUSTER:
         G = nx.powerlaw_cluster_graph(n=num_nodes, m=avg_num_edges, p=0.3)
-    # G = nx.Graph()
+    if G is None:
+        raise TypeError(f"Graph type '{graph_type}' is not supported")
     if not nx.is_connected(G):
         G = G.subgraph(max(nx.connected_components(G), key=len)).copy()
 
@@ -82,7 +80,6 @@ def simulate_step(G, status_counts, p_transmission=0.05, p_quarantine_exposed=0.
     """Simulates one time step of SEIR+Q dynamics on the graph."""
     newly_exposed = []
     newly_infected = []
-    newly_quarantined = []
     for node in G.nodes:
         node_status = G.nodes[node]["status"]
         if node_status == "I":
@@ -229,32 +226,32 @@ def animate_network(G, history, interval=200, save_dir=None):
 
 class NumRange:
     """Bounded Int type for argparse typechecking and better-than-default error messaging."""
-    def __init__(self, low=None, high=None, vartype=int):
+    def __init__(self, low=None, high=None, var_type=type[int]):
         self.low = low
         self.high = high
-        self.vartype = vartype
+        self.expected_type = var_type
     def __call__(self, value):
         try:
-            if self.vartype is int:
+            if self.expected_type is int:
                 value = int(value)
-            elif self.vartype is float:
+            elif self.expected_type is float:
                 value = float(value)
         except ValueError:
             raise self.type_exception(value)
         if (self.low is not None and value < self.low) or (self.high is not None and value > self.high):
-            raise self.range_exception()
+            raise self.range_exception(value)
         return value
-    def type_exception(self, valtype):
-        return argparse.ArgumentTypeError(f'Received {valtype} of type {type(valtype)}; expected {self.vartype}')
-    def range_exception(self):
+    def type_exception(self, val_type):
+        return argparse.ArgumentTypeError(val_type, f'Received {val_type} of type {type(val_type)}; expected {self.expected_type}')
+    def range_exception(self, value):
         if self.low is not None and self.high is not None:
-            return argparse.ArgumentError(f"Must be a {self.vartype} in the range [{self.low}, {self.high}]")
+            return argparse.ArgumentError(value, f"Must be a {self.expected_type} in the range [{self.low}, {self.high}]")
         elif self.low is not None:
-            return argparse.ArgumentError(f"Must be an {self.vartype} >= {self.low}")
+            return argparse.ArgumentError(value, f"Must be an {self.expected_type} >= {self.low}")
         elif self.high is not None:
-            return argparse.ArgumentError(f"Must be an {self.vartype} <= {self.high}")
+            return argparse.ArgumentError(value, f"Must be an {self.expected_type} <= {self.high}")
         else:
-            return argparse.ArgumentTypeError("Must be an integer")
+            return argparse.ArgumentError(value, "Error with argument in NumRange")
 
 def main():
     parser = argparse.ArgumentParser(description="SEIR+Q Disease Spread Simulation on Social Networks")
@@ -263,9 +260,9 @@ def main():
     parser.add_argument('--avg_num_edges', type=NumRange(2**2, 2**6), default=8, help='Average degree/inter-cluster edges')
     parser.add_argument('--initial_infected', type=NumRange(high=2**4), default=4, help='Initial number of infected individuals')
     parser.add_argument('--epochs', type=NumRange(20, 251), default=80, help='Number of simulation steps')
-    parser.add_argument('--p_transmission', type=NumRange(0.0, 1.0, vartype=float), default=0.2, help='Transmission probability per contact')
-    parser.add_argument('--p_qE', type=NumRange(0.0, 1.0, vartype=float), default=0.05, help='Quarantine probability for exposed')
-    parser.add_argument('--p_qI', type=NumRange(0.0, 1.0, vartype=float), default=0.4, help='Quarantine probability for infected')
+    parser.add_argument('--p_transmission', type=NumRange(0.0, 1.0, var_type=float), default=0.2, help='Transmission probability per contact')
+    parser.add_argument('--p_qE', type=NumRange(0.0, 1.0, var_type=float), default=0.05, help='Quarantine probability for exposed')
+    parser.add_argument('--p_qI', type=NumRange(0.0, 1.0, var_type=float), default=0.4, help='Quarantine probability for infected')
     parser.add_argument('--exposure_days', type=NumRange(high=10), default=3, help='Days in exposed state before infectious')
     parser.add_argument('--recovery_days', type=NumRange(2,30), default=14, help='Days in infectious state before recovery')
     parser.add_argument('--plot_population', action='store_true', help='Plot population against time')
