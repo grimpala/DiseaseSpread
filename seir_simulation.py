@@ -185,7 +185,7 @@ def run_simulation(epochs,
                                       p_quarantine_infected,
                                       exposure_days,
                                       recovery_days)
-    param_str = (f"p_trans={p_transmission:.2f}, p_qE={p_quarantine_exposed:.1f}, p_qI={p_quarantine_infected:.1f},\n"
+    param_str = (f"p_trans={p_transmission:.2f}, p_qE={p_quarantine_exposed:.2f}, p_qI={p_quarantine_infected:.2f},\n"
                     f"exp_days={exposure_days}, rec_days={recovery_days}, nodes={num_nodes}, edges={avg_num_edges}")
     if plot_population:
         plot_statuses(status_counts, param_str, save_dir)
@@ -227,19 +227,47 @@ def animate_network(G, history, interval=200, save_dir=None):
         ani.save(save_path, writer='ffmpeg')
     plt.show()
 
+class NumRange:
+    """Bounded Int type for argparse typechecking and better-than-default error messaging."""
+    def __init__(self, low=None, high=None, vartype=int):
+        self.low = low
+        self.high = high
+        self.vartype = vartype
+    def __call__(self, value):
+        try:
+            if self.vartype is int:
+                value = int(value)
+            elif self.vartype is float:
+                value = float(value)
+        except ValueError:
+            raise self.type_exception(value)
+        if (self.low is not None and value < self.low) or (self.high is not None and value > self.high):
+            raise self.range_exception()
+        return value
+    def type_exception(self, valtype):
+        return argparse.ArgumentTypeError(f'Received {valtype} of type {type(valtype)}; expected {self.vartype}')
+    def range_exception(self):
+        if self.low is not None and self.high is not None:
+            return argparse.ArgumentError(f"Must be a {self.vartype} in the range [{self.low}, {self.high}]")
+        elif self.low is not None:
+            return argparse.ArgumentError(f"Must be an {self.vartype} >= {self.low}")
+        elif self.high is not None:
+            return argparse.ArgumentError(f"Must be an {self.vartype} <= {self.high}")
+        else:
+            return argparse.ArgumentTypeError("Must be an integer")
 
 def main():
     parser = argparse.ArgumentParser(description="SEIR+Q Disease Spread Simulation on Social Networks")
     parser.add_argument('--graph_type', type=str, default='SMALL_WORLD', choices=[g.name for g in GraphType], help='Type of network graph')
-    parser.add_argument('--num_nodes', type=int, default=256, help='Number of nodes in the network')
-    parser.add_argument('--avg_num_edges', type=int, default=8, help='Average degree/inter-cluster edges')
-    parser.add_argument('--initial_infected', type=int, default=4, help='Initial number of infected individuals')
-    parser.add_argument('--epochs', type=int, default=80, help='Number of simulation steps')
-    parser.add_argument('--p_transmission', type=float, default=0.2, help='Transmission probability per contact')
-    parser.add_argument('--p_qE', type=float, default=0.05, help='Quarantine probability for exposed')
-    parser.add_argument('--p_qI', type=float, default=0.4, help='Quarantine probability for infected')
-    parser.add_argument('--exposure_days', type=int, default=3, help='Days in exposed state before infectious')
-    parser.add_argument('--recovery_days', type=int, default=14, help='Days in infectious state before recovery')
+    parser.add_argument('--num_nodes', type=NumRange(2**3, 2**12), default=256, help='Number of nodes in the network')
+    parser.add_argument('--avg_num_edges', type=NumRange(2**2, 2**6), default=8, help='Average degree/inter-cluster edges')
+    parser.add_argument('--initial_infected', type=NumRange(high=2**4), default=4, help='Initial number of infected individuals')
+    parser.add_argument('--epochs', type=NumRange(20, 251), default=80, help='Number of simulation steps')
+    parser.add_argument('--p_transmission', type=NumRange(0.0, 1.0, vartype=float), default=0.2, help='Transmission probability per contact')
+    parser.add_argument('--p_qE', type=NumRange(0.0, 1.0, vartype=float), default=0.05, help='Quarantine probability for exposed')
+    parser.add_argument('--p_qI', type=NumRange(0.0, 1.0, vartype=float), default=0.4, help='Quarantine probability for infected')
+    parser.add_argument('--exposure_days', type=NumRange(high=10), default=3, help='Days in exposed state before infectious')
+    parser.add_argument('--recovery_days', type=NumRange(2,30), default=14, help='Days in infectious state before recovery')
     parser.add_argument('--plot_population', action='store_true', help='Plot population against time')
     parser.add_argument('--plot_animation', action='store_true', help='Create an animated network visualization')
     parser.add_argument('--save_dir', type=str, default=None, help='Directory to save plots')
