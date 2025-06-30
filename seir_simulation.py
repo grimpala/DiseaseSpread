@@ -122,7 +122,7 @@ def simulate_step(G, status_counts, p_transmission=0.05, p_quarantine_exposed=0.
     status_counts['R'].append(R)
     return status_counts
 
-def plot_statuses(status_counts, p_transmission, p_quarantine_exposed, p_quarantine_infected, exposure_days, recovery_days, num_nodes, avg_num_edges, fractional=False):
+def plot_statuses(status_counts, p_transmission, p_quarantine_exposed, p_quarantine_infected, exposure_days, recovery_days, num_nodes, avg_num_edges, save_path=None, fractional=False):
     """Plots the epidemic curves for all states."""
 
     S = np.array(status_counts['S'])
@@ -160,6 +160,8 @@ def plot_statuses(status_counts, p_transmission, p_quarantine_exposed, p_quarant
     plt.legend(loc="upper right")
     plt.grid(True)
     plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
     plt.show()
 
 def run_simulation(epochs,
@@ -205,7 +207,8 @@ def run_simulation(epochs,
                       exposure_days,
                       recovery_days,
                       num_nodes,
-                      avg_num_edges)
+                      avg_num_edges,
+                      save_path=os.path.join(save_dir, "epidemic_curve.png") if save_dir else None)
 
 def num_param_combinations(param_choices):
     return functools.reduce(lambda x,y: x * len(y), param_choices.values(), 1)
