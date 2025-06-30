@@ -123,7 +123,7 @@ def simulate_step(G, status_counts, p_transmission=0.05, p_quarantine_exposed=0.
     status_counts['R'].append(R)
     return status_counts
 
-def plot_statuses(status_counts, p_transmission, p_quarantine_exposed, p_quarantine_infected, exposure_days, recovery_days, num_nodes, avg_num_edges, save_dir=None, fractional=False):
+def plot_statuses(status_counts, param_str, save_dir=None):
     """Plots the epidemic curves for all states."""
 
     S = np.array(status_counts['S'])
@@ -133,40 +133,28 @@ def plot_statuses(status_counts, p_transmission, p_quarantine_exposed, p_quarant
     QI = np.array(status_counts['QI'])
     R = np.array(status_counts['R'])
 
-    # Normalize to fractions
-    S_frac = S / num_nodes
-    E_frac = E / num_nodes
-    I_frac = I / num_nodes
-    QE_frac = QE / num_nodes
-    QI_frac = QI / num_nodes
-    R_frac = R / num_nodes
-    
     # Time axis
     timesteps = range(len(S))
     plt.figure(figsize=(10,6))
-    if fractional:
-        plt.stackplot(timesteps, I_frac, QI_frac, E_frac, QE_frac, R_frac, S_frac, 
-                      labels=["Infected", "Quarantined+Infected", "Exposed", "Quarantined+Exposed", "Recovered", "Susceptible"],
-                      colors=["#d62728", "#ff9896", "#9467bd", "#c5b0d5", "#2ca02c", "#1f77b4"],
-                      alpha=0.8)
-        plt.ylabel('Fraction of population')
-    else:
-        plt.stackplot(timesteps, I, QI, E, QE, R, S, 
-                      labels=["Infected", "Quarantined+Infected", "Exposed", "Quarantined+Exposed", "Recovered", "Susceptible"],
-                      colors=["#d62728", "#ff9896", "#9467bd", "#c5b0d5", "#2ca02c", "#1f77b4"],
-                      alpha=0.8)
-        plt.ylabel('Population')
+    plt.stackplot(timesteps, I, QI, E, QE, R, S,
+                  labels=["Infected", "Quarantined+Infected", "Exposed", "Quarantined+Exposed", "Recovered", "Susceptible"],
+                  colors=["#d62728", "#ff9896", "#9467bd", "#c5b0d5", "#2ca02c", "#1f77b4"],
+                  alpha=0.8)
+    plt.ylabel('Population')
     plt.xlabel('Time Step')
-    plt.title(f'p_transmission={p_transmission:.2f}, p_quarantine_exposed={p_quarantine_exposed:.1f}, p_quarantine_infected={p_quarantine_infected:.1f},\n exposure_days={exposure_days}, recovery_days={recovery_days}, num_nodes={num_nodes}, avg_num_edges={avg_num_edges}')
+    plt.title(param_str)
     plt.legend(loc="upper right")
     plt.grid(True)
     plt.tight_layout()
     if save_dir is not None:
-        file_name = "epidemic_curve_" + datetime.datetime.now().strftime('%Y%m%d%H%M%S') + ".png"
-        save_path = os.path.join(save_dir, file_name) if save_dir else None
+        plots_path = save_dir + "plots/"
+        if not os.path.exists(plots_path):
+            os.makedirs(plots_path)
+        filename = "epidemic_curve_" + datetime.datetime.now().strftime('%Y%m%d%H%M%S') + ".png"
+        save_path = os.path.join(plots_path, filename)
         plt.savefig(save_path)
     plt.show()
-git
+
 def run_simulation(epochs,
                    graph_options,
                    p_transmission, 
@@ -177,76 +165,68 @@ def run_simulation(epochs,
                    num_nodes,
                    avg_num_edges,
                    initial_infected=1,
-                   prebuilt_graph=None,
                    save_dir=None,
-                   do_plot=False):
+                   plot_population=False,
+                   record_history=False):
     """Runs the SEIR+Q simulation and returns the status counts."""
     G = build_graph(graph_options, num_nodes, avg_num_edges, initial_infected)
 
     # Counts of each status at each epoch, for plotting.
-    status_counts = {
-        'S': [],
-        'E': [],
-        'I': [],
-        'QE': [],
-        'QI': [],
-        'R': []
-    }
+    status_counts = {k: [] for k in ["S", "E", "I", "QE", "QI", "R"]}
+    history = [] if record_history else None
 
-    for epoch in range(epochs):
+    for _ in range(epochs):
+        if history is not None:
+            history.append({n: G.nodes[n]["status"] for n in G.nodes})
         status_counts = simulate_step(G, 
                                       status_counts, 
-                                      p_transmission=p_transmission, 
-                                      p_quarantine_exposed=p_quarantine_exposed,
-                                      p_quarantine_infected=p_quarantine_infected,
-                                      exposure_days=exposure_days,
-                                      recovery_days=recovery_days)
-    if do_plot:
-        display.clear_output(wait=True)
-        plot_statuses(status_counts,
-                      p_transmission,
-                      p_quarantine_exposed,
-                      p_quarantine_infected,
-                      exposure_days,
-                      recovery_days,
-                      num_nodes,
-                      avg_num_edges,
-                      save_dir)
+                                      p_transmission,
+                                      p_quarantine_exposed,
+                                      p_quarantine_infected,
+                                      exposure_days,
+                                      recovery_days)
+    param_str = (f"p_trans={p_transmission:.2f}, p_qE={p_quarantine_exposed:.1f}, p_qI={p_quarantine_infected:.1f},\n"
+                    f"exp_days={exposure_days}, rec_days={recovery_days}, nodes={num_nodes}, edges={avg_num_edges}")
+    if plot_population:
+        plot_statuses(status_counts, param_str, save_dir)
+    return status_counts, history, G
 
-def num_param_combinations(param_choices):
-    return functools.reduce(lambda x,y: x * len(y), param_choices.values(), 1)
+def animate_network(G, history, interval=200, save_dir=None):
+    pos = nx.spring_layout(G, seed=42)
+    fig, ax = plt.subplots(figsize=(8,8))
+    def update(frame):
+        ax.clear()
+        status = history[frame]
+        color_map = {'S': 'blue', 'E': 'yellow', 'I': 'red', 'R': 'green'}
+        legend_labels = {
+            'S': 'Susceptible', 'E': 'Exposed', 'I': 'Infectious', 'R': 'Recovered',
+        }
+        # Create legend handles
+        from matplotlib.lines import Line2D
 
-def plot_variable_params(param_choices, graph_type, epochs=80, sleep_time=0.5):
-    param_values = [param_choices[key] for key in param_choices]
-    for (p_transmission,
-     p_quarantine_exposed,
-     p_quarantine_infected,
-     exposure_days,
-     recovery_days,
-     num_clusters,
-     nodes_per_cluster,
-     inter_cluster_edges,
-     initial_infected) in itertools.product(*param_values):
-        # Too slow to compute
-        if num_clusters * nodes_per_cluster > 5000:
-            continue
-        # Doesn't match a realistic quarantine scenario
-        if p_quarantine_exposed > p_quarantine_infected:
-            continue
+        legend_handles = [
+            Line2D([0], [0], marker='o', color='w', label=legend_labels[state],
+                   markerfacecolor=color_map[state], markersize=10)
+            for state in ['S', 'E', 'I', 'R']
+        ]
 
-        run_simulation(epochs, 
-                       graph_options,
-                       p_transmission, 
-                       p_quarantine_exposed,
-                       p_quarantine_infected,
-                       exposure_days,
-                       recovery_days,
-                       num_clusters,
-                       nodes_per_cluster,
-                       inter_cluster_edges,
-                       initial_infected,
-                       plot=True)
-        time.sleep(sleep_time)
+        node_colors = [color_map[status[n]] for n in G.nodes]  # node_color expects a list
+        nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=30, ax=ax)  # type: ignore[arg-type]
+        nx.draw_networkx_edges(G, pos, alpha=0.1, ax=ax)
+        ax.set_title(f"Day {frame}")
+        ax.axis('off')
+        ax.legend(handles=legend_handles, loc='lower left', bbox_to_anchor=(0, 0))
+        return []  # Return an iterable of artists (empty is fine)
+    ani = animation.FuncAnimation(fig, update, frames=len(history), interval=interval, repeat=False)
+    if save_dir is not None:
+        animation_path = save_dir + "animations/"
+        if not os.path.exists(animation_path):
+            os.makedirs(animation_path)
+        filename = "epidemic_animation_" + datetime.datetime.now().strftime('%Y%m%d%H%M%S') + ".gif"
+        save_path = os.path.join(animation_path, filename)
+        ani.save(save_path, writer='ffmpeg')
+    plt.show()
+
 
 def main():
     parser = argparse.ArgumentParser(description="SEIR+Q Disease Spread Simulation on Social Networks")
@@ -260,12 +240,14 @@ def main():
     parser.add_argument('--p_qI', type=float, default=0.4, help='Quarantine probability for infected')
     parser.add_argument('--exposure_days', type=int, default=3, help='Days in exposed state before infectious')
     parser.add_argument('--recovery_days', type=int, default=14, help='Days in infectious state before recovery')
+    parser.add_argument('--plot_population', action='store_true', help='Plot population against time')
+    parser.add_argument('--plot_animation', action='store_true', help='Create an animated network visualization')
     parser.add_argument('--save_dir', type=str, default=None, help='Directory to save plots')
     args = parser.parse_args()
     if args.save_dir and not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
     graph_options = GraphOptions(GraphType[args.graph_type])
-    run_simulation(
+    status_counts, history, G = run_simulation(
         epochs=args.epochs,
         graph_options=graph_options,
         p_transmission=args.p_transmission,
@@ -276,8 +258,12 @@ def main():
         num_nodes=args.num_nodes,
         avg_num_edges=args.avg_num_edges,
         initial_infected=args.initial_infected,
-        do_plot=True,
+        plot_population=args.plot_population,
+        record_history=args.plot_animation,
         save_dir=args.save_dir
     )
+    if history is not None and args.plot_animation:
+        animate_network(G, history, interval=200, save_dir=args.save_dir)
+
 if __name__ == "__main__":
     main()
