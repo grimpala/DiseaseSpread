@@ -10,6 +10,7 @@ import itertools
 import functools
 import os
 import argparse
+import datetime
 
 class GraphOptions:
     def __init__(self, graph_type):
@@ -122,7 +123,7 @@ def simulate_step(G, status_counts, p_transmission=0.05, p_quarantine_exposed=0.
     status_counts['R'].append(R)
     return status_counts
 
-def plot_statuses(status_counts, p_transmission, p_quarantine_exposed, p_quarantine_infected, exposure_days, recovery_days, num_nodes, avg_num_edges, save_path=None, fractional=False):
+def plot_statuses(status_counts, p_transmission, p_quarantine_exposed, p_quarantine_infected, exposure_days, recovery_days, num_nodes, avg_num_edges, save_dir=None, fractional=False):
     """Plots the epidemic curves for all states."""
 
     S = np.array(status_counts['S'])
@@ -160,10 +161,12 @@ def plot_statuses(status_counts, p_transmission, p_quarantine_exposed, p_quarant
     plt.legend(loc="upper right")
     plt.grid(True)
     plt.tight_layout()
-    if save_path:
+    if save_dir is not None:
+        file_name = "epidemic_curve_" + datetime.datetime.now().strftime('%Y%m%d%H%M%S') + ".png"
+        save_path = os.path.join(save_dir, file_name) if save_dir else None
         plt.savefig(save_path)
     plt.show()
-
+git
 def run_simulation(epochs,
                    graph_options,
                    p_transmission, 
@@ -208,7 +211,7 @@ def run_simulation(epochs,
                       recovery_days,
                       num_nodes,
                       avg_num_edges,
-                      save_path=os.path.join(save_dir, "epidemic_curve.png") if save_dir else None)
+                      save_dir)
 
 def num_param_combinations(param_choices):
     return functools.reduce(lambda x,y: x * len(y), param_choices.values(), 1)
