@@ -26,13 +26,13 @@ pip install -r requirements.txt
 
 ```bash
 # Run a basic simulation with small-world network
-python seir_simulation.py --graph_type SMALL_WORLD --p_transmission 0.25 --plot_population
+python main.py --graph_type SMALL_WORLD --p_transmission 0.25 --plot_population
 
 # Create an animated visualization
-python seir_simulation.py --graph_type SMALL_WORLD --p_transmission 0.25 --plot_animation
+python main.py --graph_type SMALL_WORLD --p_transmission 0.25 --plot_animation
 
 # Save visualizations locally
-python seir_simulation.py --graph_type SMALL_WORLD --p_transmission 0.25 --plot_animation --plot_population --save_dir results/
+python main.py --graph_type SMALL_WORLD --p_transmission 0.25 --plot_animation --plot_population --save_dir results/
 ```
 
 ## More Usage Examples
@@ -40,7 +40,7 @@ python seir_simulation.py --graph_type SMALL_WORLD --p_transmission 0.25 --plot_
 ### 1. Full parameter customization
 ```bash
 # Random geometric graph network with radius 0.1, moderate transmission and moderate quarantining
-python seir_simulation.py --graph_type GEOMETRIC --p_transmission 0.25 --num_nodes 512 --avg_num_edges 8 --initial_infected 4 --epochs 120 --p_qE 0.01 --p_qI 0.3 --exposure_days 2 --recovery_days 7 --plot_animation --plot_population --save_dir results/
+python main.py --graph_type GEOMETRIC --p_transmission 0.25 --num_nodes 512 --avg_num_edges 8 --initial_infected 4 --epochs 120 --p_qE 0.01 --p_qI 0.3 --exposure_days 2 --recovery_days 7 --plot_animation --plot_population --save_dir results/
 ```
 
 ### 2. Animated Network Visualization
@@ -85,7 +85,9 @@ python main.py --graph_type PREFERENTIAL_ATTACHMENT --nodes 128 --edges 4 \
 
 ```
 DiseaseSpread/
-├── seir_simulation.py              # Visualization and simulation logic
+├── main.py              # CLI interface, argument parsing, and high-level orchestration
+├── simulation.txt     # Core simulation logic, network generation, and SEIR+Q dynamics
+├── visualization.txt     # Plotting functions, animations
 ├── requirements.txt     # Python dependencies
 └── README.md           # This file
 ```
